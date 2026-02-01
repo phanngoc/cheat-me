@@ -26,11 +26,31 @@ class PostgresAuditAddon:
         method = flow.request.method
         status_code = flow.response.status_code
         
+        request_headers = dict(flow.request.headers)
+        request_query = dict(flow.request.query)
+        import json
+        req_headers_json = json.dumps(request_headers)
+        req_query_json = json.dumps(request_query)
+        request_body = flow.request.content
+
+        response_headers = dict(flow.response.headers)
+        headers_json = json.dumps(response_headers)
+        content_type = response_headers.get("content-type", "")
+        response_body = flow.response.content
+        
         with self.conn.cursor() as cur:
             # 1. Store in requests table
             cur.execute(
-                "INSERT INTO requests (url, method, status_code) VALUES (%s, %s, %s) RETURNING id",
-                (url, method, status_code)
+                """INSERT INTO requests (
+                    url, method, status_code, 
+                    request_headers, request_query, request_body,
+                    response_headers, response_body, content_type
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                (
+                    url, method, status_code, 
+                    req_headers_json, req_query_json, request_body,
+                    headers_json, response_body, content_type
+                )
             )
             request_db_id = cur.fetchone()[0]
             

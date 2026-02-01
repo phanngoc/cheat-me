@@ -1,11 +1,33 @@
-import sqlite3
+import requests
 import json
 import re
+import base64
 
-def analyze_security(db_path="audit_traffic.db"):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+GRAPHQL_URL = "http://localhost:8085/graphql"
+
+def fetch_requests_from_graphql():
+    query = """
+    query {
+      requests {
+        id
+        url
+        method
+        statusCode
+        responseHeaders
+        responseBody
+        contentType
+      }
+    }
+    """
+    response = requests.post(GRAPHQL_URL, json={'query': query})
+    if response.status_code == 200:
+        return response.json()['data']['requests']
+    else:
+        print(f"Error fetching from GraphQL: {response.text}")
+        return []
+
+def analyze_security():
+    rows = fetch_requests_from_graphql()
     
     # 1. Kiểm tra thiếu Security Headers (Response)
     print("\n=== [1] Security Headers Analysis ===")
@@ -17,28 +39,33 @@ def analyze_security(db_path="audit_traffic.db"):
         "Referrer-Policy": "Kiểm soát thông tin referrer gửi đi."
     }
     
-    # Lấy các URL duy nhất để phân tích header
-    cursor.execute("SELECT DISTINCT url, response_headers FROM requests WHERE response_status = 200")
-    for row in cursor.fetchall():
+    for row in rows:
         url = row['url']
-        if not row['response_headers']: continue
+        if row['statusCode'] != 200: continue
+        if not row['responseHeaders']: continue
         
-        headers = {k.lower(): v for k, v in json.loads(row['response_headers']).items()}
+        try:
+            headers = {k.lower(): v for k, v in json.loads(row['responseHeaders']).items()}
+        except:
+            continue
+            
         missing = []
         for sh, desc in security_headers.items():
             if sh.lower() not in headers:
                 missing.append(sh)
         
-        if missing and ("mrmax.jp" in url or "karte.io" in url):
+        if missing and ("mrmax.jp" in url or "karte.io" in url or "localhost" in url):
             print(f"[!] {url[:80]}...")
             print(f"    Missing: {', '.join(missing)}")
 
     # 2. Kiểm tra rò rỉ thông tin Server/Version
     print("\n=== [2] Information Disclosure Analysis ===")
-    cursor.execute("SELECT DISTINCT url, response_headers FROM requests")
-    for row in cursor.fetchall():
-        if not row['response_headers']: continue
-        headers = {k.lower(): v for k, v in json.loads(row['response_headers']).items()}
+    for row in rows:
+        if not row['responseHeaders']: continue
+        try:
+            headers = {k.lower(): v for k, v in json.loads(row['responseHeaders']).items()}
+        except:
+            continue
         
         server = headers.get('server')
         x_powered_by = headers.get('x-powered-by')
@@ -51,8 +78,7 @@ def analyze_security(db_path="audit_traffic.db"):
     # 3. Kiểm tra thông tin nhạy cảm trong URL (PII/Tokens)
     print("\n=== [3] Sensitive Data in URLs ===")
     sensitive_keywords = ['token', 'session', 'auth', 'key', 'email', 'user']
-    cursor.execute("SELECT DISTINCT url FROM requests")
-    for row in cursor.fetchall():
+    for row in rows:
         url = row['url'].lower()
         found = [k for k in sensitive_keywords if k in url]
         if found:
@@ -60,9 +86,13 @@ def analyze_security(db_path="audit_traffic.db"):
 
     # 4. Kiểm tra Cookies bảo mật
     print("\n=== [4] Insecure Cookie Config ===")
-    cursor.execute("SELECT DISTINCT url, response_headers FROM requests WHERE response_headers LIKE '%Set-Cookie%'")
-    for row in cursor.fetchall():
-        headers = {k.lower(): v for k, v in json.loads(row['response_headers']).items()}
+    for row in rows:
+        if not row['responseHeaders']: continue
+        try:
+            headers = {k.lower(): v for k, v in json.loads(row['responseHeaders']).items()}
+        except:
+            continue
+            
         set_cookie = headers.get('set-cookie', '')
         if set_cookie:
             issues = []
@@ -83,19 +113,21 @@ def analyze_security(db_path="audit_traffic.db"):
         "AWS Key": r'AKIA[0-9A-Z]{16}',
     }
     
-    cursor.execute("SELECT url, response_body, content_type FROM requests WHERE content_type LIKE '%text%' OR content_type LIKE '%json%'")
-    for row in cursor.fetchall():
-        body = row['response_body']
-        if not body: continue
+    for row in rows:
+        content_type = row['contentType'] or ""
+        if 'text' not in content_type.lower() and 'json' not in content_type.lower():
+            continue
+            
+        body_base64 = row['responseBody']
+        if not body_base64: continue
+        
         try:
-            body_text = body.decode('utf-8', errors='ignore')
+            body_text = base64.b64decode(body_base64).decode('utf-8', errors='ignore')
             for name, p in patterns.items():
                 if re.search(p, body_text):
                     print(f"[!] {name} found in response from: {row['url'][:80]}")
         except:
             continue
 
-    conn.close()
-
 if __name__ == "__main__":
-    analyze_security("audit_traffic.db")
+    analyze_security()
