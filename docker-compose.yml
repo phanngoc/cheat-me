@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: playwright_db
+    restart: always
+    environment:
+      POSTGRES_USER: strix_user
+      POSTGRES_PASSWORD: strix_password
+      POSTGRES_DB: strix_pentesting
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+
+volumes:
+  postgres_data:

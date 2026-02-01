@@ -1,47 +1,58 @@
-import sqlite3
-import json
+import psycopg2
 import datetime
-import os
 from mitmproxy import http
+from sitemap_service import SitemapService
 
-class SQLiteAuditAddon:
-    def __init__(self, db_path="audit_traffic.db"):
-        self.db_path = db_path
-        self._setup_db()
+DB_CONFIG = {
+    "host": "localhost",
+    "port": 5432,
+    "user": "strix_user",
+    "password": "strix_password",
+    "dbname": "strix_pentesting"
+}
 
-    def _setup_db(self):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS requests (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS websocket_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, direction TEXT, content BLOB)")
-        conn.commit()
-        conn.close()
+class PostgresAuditAddon:
+    def __init__(self, db_config=DB_CONFIG):
+        self.db_config = db_config
+        self.sitemap_service = SitemapService(db_config)
+        self._setup_db_connection()
+
+    def _setup_db_connection(self):
+        self.conn = psycopg2.connect(**self.db_config)
+        self.conn.autocommit = True
 
     def response(self, flow: http.HTTPFlow):
-        # Lưu HTTP bình thường
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO requests (url) VALUES (?)", (flow.request.pretty_url,))
-        conn.commit()
-        conn.close()
+        url = flow.request.pretty_url
+        method = flow.request.method
+        status_code = flow.response.status_code
+        
+        with self.conn.cursor() as cur:
+            # 1. Store in requests table
+            cur.execute(
+                "INSERT INTO requests (url, method, status_code) VALUES (%s, %s, %s) RETURNING id",
+                (url, method, status_code)
+            )
+            request_db_id = cur.fetchone()[0]
+            
+            # 2. Update Sitemap
+            try:
+                self.sitemap_service.insert_request(url, request_id=str(request_db_id))
+            except Exception as e:
+                print(f"Sitemap update error: {e}")
 
     def websocket_message(self, flow: http.HTTPFlow):
-        # GHI RA FILE ĐỂ DEBUG TUYỆT ĐỐI
-        with open("ws_debug_log.txt", "a") as f:
-            f.write(f"WS Event triggered at {datetime.datetime.now()}\n")
-            
         if flow.websocket is None: return
         message = flow.websocket.messages[-1]
         direction = "client_to_server" if message.from_client else "server_to_client"
         
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO websocket_messages (direction, content) VALUES (?, ?)", (direction, message.content))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            with open("ws_debug_log.txt", "a") as f:
-                f.write(f"SQL Error: {str(e)}\n")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO websocket_messages (direction, content) VALUES (%s, %s)",
+                (direction, message.content)
+            )
 
-addons = [SQLiteAuditAddon()]
+    def done(self):
+        self.sitemap_service.close()
+        self.conn.close()
+
+addons = [PostgresAuditAddon()]

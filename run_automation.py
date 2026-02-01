@@ -7,17 +7,17 @@ def run_automation():
     # 1. Khởi động mitmdump trong background
     # Lưu ý: Chúng ta dùng port 8085 để tránh xung đột với port cũ 8080/8082
     proxy_port = 8085
+    mitmdump_path = os.path.join(os.getcwd(), ".venv", "bin", "mitmdump")
     mitm_cmd = [
-        "uv", "run", "--project", "../mitmproxy", 
-        "mitmdump", "-p", str(proxy_port), 
+        mitmdump_path, "-p", str(proxy_port), 
         "-s", "audit_addon.py"
     ]
     
     print(f"Starting mitmdump on port {proxy_port}...")
-    mitm_process = subprocess.Popen(mitm_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    mitm_process = subprocess.Popen(mitm_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     
     # Đợi một chút để proxy khởi động
-    time.sleep(3)
+    time.sleep(5)
     
     try:
         with sync_playwright() as p:
