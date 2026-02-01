@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+.pytest_cache/
+
+# Databases (Audit data)
+*.db
+*.db-journal
+
+# Temporary Capture Files
+*.html
+*.mitm
+*.log
+*.txt
+ws_debug_log.txt
+
+# OS specifically
+.DS_Store
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
