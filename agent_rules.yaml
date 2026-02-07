@@ -1,0 +1,462 @@
+# Agent Orchestrator Rules Configuration
+# Each rule is a self-contained detection unit with its own logic
+# Documentation: docs/security-rules.md
+
+rules:
+  # ====================================================================
+  # REQUEST FILTERING RULES (RF-XXX) - Thinking Phase
+  # ====================================================================
+  
+  RF-001:
+    name: "Sensitive URL Keywords"
+    enabled: true
+    phase: thinking
+    category: "Reconnaissance"
+    severity: MEDIUM
+    owasp: "A01:2025"
+    description: "Detects URLs containing keywords that indicate sensitive functionality"
+    detection:
+      type: url_contains
+      patterns:
+        - login
+        - signin
+        - admin
+        - administrator
+        - api
+        - auth
+        - authenticate
+        - config
+        - configuration
+        - user
+        - users
+        - session
+        - token
+        - dashboard
+        - console
+        - manage
+        - account
+        - profile
+  
+  RF-002:
+    name: "Suspicious HTTP Methods"
+    enabled: true
+    phase: thinking
+    category: "Reconnaissance"
+    severity: MEDIUM
+    owasp: "A01:2025"
+    description: "Flags requests using state-changing HTTP methods"
+    detection:
+      type: http_method
+      patterns:
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+  
+  RF-003:
+    name: "Suspicious Status Codes"
+    enabled: true
+    phase: thinking
+    category: "Reconnaissance"
+    severity: HIGH
+    owasp: "A01:2025"
+    description: "Identifies HTTP responses indicating potential security issues"
+    detection:
+      type: status_code
+      patterns:
+        - 401  # Unauthorized
+        - 403  # Forbidden - potential bypass
+        - 500  # Internal Server Error - may indicate injection
+  
+  RF-004:
+    name: "Static Asset Exclusion"
+    enabled: true
+    phase: thinking
+    category: "Reconnaissance"
+    severity: INFO
+    description: "Excludes static assets from analysis to reduce noise"
+    detection:
+      type: url_extension
+      exclude: true  # This rule excludes matches
+      patterns:
+        - .css
+        - .js
+        - .png
+        - .jpg
+        - .jpeg
+        - .svg
+        - .ico
+        - .woff
+        - .woff2
+        - .ttf
+        - .eot
+
+  # ====================================================================
+  # DIRECTORY DISCOVERY RULES (DD-XXX) - Deep Discovery Phase
+  # ====================================================================
+  
+  DD-001:
+    name: "Administrative Directories"
+    enabled: true
+    phase: discovery
+    category: "Broken Access Control"
+    severity: HIGH
+    owasp: "A01:2025"
+    description: "Identifies directories commonly used for administrative interfaces"
+    detection:
+      type: folder_match
+      patterns:
+        - admin
+        - administrator
+        - manage
+        - management
+        - control
+        - console
+        - dashboard
+        - internal
+        - private
+        - backend
+        - backoffice
+  
+  DD-002:
+    name: "API Versioning Directories"
+    enabled: true
+    phase: discovery
+    category: "Broken Access Control"
+    severity: MEDIUM
+    owasp: "A01:2025"
+    description: "Detects versioned API endpoints with potentially different security controls"
+    detection:
+      type: folder_match
+      patterns:
+        - api
+        - rest
+        - graphql
+        - v1
+        - v2
+        - v3
+        - v4
+        - version
+  
+  DD-003:
+    name: "Configuration & Sensitive Folders"
+    enabled: true
+    phase: discovery
+    category: "Security Misconfiguration"
+    severity: CRITICAL
+    owasp: "A02:2025"
+    description: "Locates directories containing configuration or sensitive data"
+    detection:
+      type: folder_match
+      patterns:
+        - config
+        - configuration
+        - settings
+        - backup
+        - old
+        - .git
+        - .svn
+        - secret
+        - keys
+        - credentials
+        - auth
+
+  # ====================================================================
+  # AUTHENTICATION & SESSION RULES (AS-XXX) - Analysis Phase
+  # ====================================================================
+  
+  AS-001:
+    name: "Bearer Token in Authorization Header"
+    enabled: true
+    phase: analysis
+    category: "Authentication"
+    severity: INFO
+    owasp: "A07:2025"
+    description: "Detects Bearer tokens in request Authorization headers"
+    detection:
+      type: request_header
+      header_name: authorization
+      contains: bearer
+      case_sensitive: false
+    message: "Bearer Token detected in Authorization header"
+  
+  AS-002:
+    name: "Insecure Cookie - Missing Secure Flag"
+    enabled: true
+    phase: analysis
+    category: "Session Management"
+    severity: HIGH
+    owasp: "A07:2025"
+    cwe: "CWE-614"
+    description: "Identifies cookies set without the Secure attribute"
+    detection:
+      type: response_header
+      header_name: set-cookie
+      missing_attribute: secure
+      case_sensitive: false
+    message: "Insecure cookie detected (missing Secure flag)"
+    remediation: "Add Secure; HttpOnly; SameSite=Strict attributes"
+
+  # ====================================================================
+  # SENSITIVE DATA EXPOSURE RULES (SE-XXX) - Analysis Phase
+  # ====================================================================
+  
+  SE-001:
+    name: "Sensitive Parameters in Query String"
+    enabled: true
+    phase: analysis
+    category: "Sensitive Data Exposure"
+    severity: HIGH
+    owasp: "A04:2025"
+    cwe: "CWE-598"
+    description: "Detects sensitive information in URL query parameters"
+    detection:
+      type: query_param
+      param_contains:
+        - token
+        - access_token
+        - api_key
+        - apikey
+        - key
+        - secret
+        - secret_key
+        - password
+        - passwd
+        - pwd
+        - credentials
+        - auth
+    message: "Sensitive parameter '{key}' exposed in query string"
+  
+  SE-002:
+    name: "Credentials in Request Body"
+    enabled: true
+    phase: analysis
+    category: "Sensitive Data Exposure"
+    severity: WARNING
+    owasp: "A04:2025"
+    cwe: "CWE-319"
+    description: "Identifies potential credentials in POST/PUT request bodies"
+    detection:
+      type: request_body
+      contains:
+        - password
+        - passwd
+        - pwd
+        - secret
+        - api_secret
+        - credentials
+        - creds
+        - private_key
+        - privatekey
+    message: "Potential credentials detected in request body"
+  
+  SE-003:
+    name: "AWS Credentials in Response"
+    enabled: true
+    phase: analysis
+    category: "Sensitive Data Exposure"
+    severity: CRITICAL
+    owasp: "A04:2025"
+    cwe: "CWE-522"
+    description: "Detects AWS access key IDs in HTTP responses"
+    detection:
+      type: response_body
+      contains:
+        - akia  # AWS Access Key ID pattern
+    message: "AWS Access Key ID detected in response body"
+    remediation: "Rotate credentials immediately, use AWS Secrets Manager"
+  
+  SE-004:
+    name: "JWT Token in Response Body"
+    enabled: true
+    phase: analysis
+    category: "Authentication"
+    severity: INFO
+    owasp: "A07:2025"
+    description: "Detects JSON Web Tokens in response bodies"
+    detection:
+      type: response_body
+      contains:
+        - eyj  # JWT header base64
+    message: "JWT token detected in response body"
+
+  # ====================================================================
+  # SECURITY MISCONFIGURATION RULES (SM-XXX) - Analysis Phase
+  # ====================================================================
+  
+  SM-001:
+    name: "Server Information Disclosure"
+    enabled: true
+    phase: analysis
+    category: "Information Disclosure"
+    severity: INFO
+    owasp: "A05:2025"
+    cwe: "CWE-200"
+    description: "Detects servers revealing version information"
+    detection:
+      type: response_header
+      header_name: server
+      exists: true
+    message: "Server version disclosed: {value}"
+    remediation: "Suppress server version information"
+  
+  SM-002:
+    name: "Technology Stack Disclosure"
+    enabled: true
+    phase: analysis
+    category: "Information Disclosure"
+    severity: INFO
+    owasp: "A05:2025"
+    cwe: "CWE-200"
+    description: "Identifies X-Powered-By headers revealing technology stack"
+    detection:
+      type: response_header
+      header_name: x-powered-by
+      exists: true
+    message: "Technology stack disclosed: {value}"
+    remediation: "Remove X-Powered-By header"
+
+  # ====================================================================
+  # CRYPTOGRAPHIC FAILURES RULES (CF-XXX) - Analysis Phase
+  # ====================================================================
+  
+  CF-001:
+    name: "Missing HSTS Header"
+    enabled: true
+    phase: analysis
+    category: "Cryptographic Failures"
+    severity: HIGH
+    owasp: "A04:2025"
+    cwe: "CWE-523"
+    description: "HTTP Strict Transport Security header is missing"
+    detection:
+      type: response_header
+      header_name: strict-transport-security
+      missing: true
+    message: "HSTS header not set - site vulnerable to SSL stripping"
+    remediation: "Add header: Strict-Transport-Security: max-age=31536000; includeSubDomains; preload"
+  
+  CF-002:
+    name: "Missing Content Security Policy"
+    enabled: true
+    phase: analysis
+    category: "Cryptographic Failures"
+    severity: MEDIUM
+    owasp: "A04:2025"
+    cwe: "CWE-693"
+    description: "Content-Security-Policy header is missing"
+    detection:
+      type: response_header
+      header_name: content-security-policy
+      missing: true
+    message: "CSP header not set - vulnerable to XSS and data injection"
+    remediation: "Add CSP header with appropriate directives"
+  
+  CF-003:
+    name: "Missing X-Content-Type-Options"
+    enabled: true
+    phase: analysis
+    category: "Cryptographic Failures"
+    severity: MEDIUM
+    owasp: "A04:2025"
+    cwe: "CWE-693"
+    description: "X-Content-Type-Options header is missing"
+    detection:
+      type: response_header
+      header_name: x-content-type-options
+      missing: true
+    message: "X-Content-Type-Options not set - vulnerable to MIME sniffing"
+    remediation: "Add header: X-Content-Type-Options: nosniff"
+  
+  CF-004:
+    name: "Missing X-Frame-Options"
+    enabled: true
+    phase: analysis
+    category: "Cryptographic Failures"
+    severity: MEDIUM
+    owasp: "A04:2025"
+    cwe: "CWE-1021"
+    description: "X-Frame-Options header is missing"
+    detection:
+      type: response_header
+      header_name: x-frame-options
+      missing: true
+    message: "X-Frame-Options not set - vulnerable to clickjacking"
+    remediation: "Add header: X-Frame-Options: DENY or SAMEORIGIN"
+  
+  CF-005:
+    name: "Cookie Missing HttpOnly Flag"
+    enabled: true
+    phase: analysis
+    category: "Cryptographic Failures"
+    severity: HIGH
+    owasp: "A04:2025"
+    cwe: "CWE-1004"
+    description: "Cookie set without HttpOnly flag"
+    detection:
+      type: response_header
+      header_name: set-cookie
+      missing_attribute: httponly
+      case_sensitive: false
+    message: "Cookie missing HttpOnly flag - vulnerable to XSS theft"
+    remediation: "Add HttpOnly flag to all session cookies"
+  
+  CF-006:
+    name: "Cookie Missing SameSite Attribute"
+    enabled: true
+    phase: analysis
+    category: "Cryptographic Failures"
+    severity: MEDIUM
+    owasp: "A04:2025"
+    cwe: "CWE-352"
+    description: "Cookie set without SameSite attribute"
+    detection:
+      type: response_header
+      header_name: set-cookie
+      missing_attribute: samesite
+      case_sensitive: false
+    message: "Cookie missing SameSite attribute - vulnerable to CSRF"
+    remediation: "Add SameSite=Strict or SameSite=Lax to cookies"
+
+  # ====================================================================
+  # INFORMATION DISCLOSURE RULES (ID-XXX) - Analysis Phase
+  # ====================================================================
+  
+  # Note: ID-001 and ID-002 require more complex detection
+  # These are placeholders for future implementation
+  
+  # ID-001:
+  #   name: "Directory Listing Enabled"
+  #   enabled: false
+  #   phase: analysis
+  #   category: "Information Disclosure"
+  #   severity: MEDIUM
+  #   owasp: "A05:2025"
+  #   cwe: "CWE-548"
+  
+  # ID-002:
+  #   name: "Error Messages with Stack Traces"
+  #   enabled: false
+  #   phase: analysis
+  #   category: "Information Disclosure"
+  #   severity: MEDIUM
+  #   owasp: "A10:2025"
+  #   cwe: "CWE-209"
+
+# ====================================================================
+# Configuration
+# ====================================================================
+config:
+  # Enable/disable entire phases
+  phases:
+    thinking: true
+    discovery: true
+    analysis: true
+  
+  # Logging
+  verbose: false
+  
+  # Output format
+  output:
+    show_metadata: true  # Show OWASP/CWE for HIGH/CRITICAL
+    group_by_severity: true
