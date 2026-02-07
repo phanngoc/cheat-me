@@ -1,0 +1,243 @@
+# Crawl Orchestrator Configuration
+# Auto-Crawling & Business Flow Discovery System
+
+# ===========================================
+# Crawl Settings
+# ===========================================
+crawl:
+  # Maximum crawl depth from seed URLs (0 = only seeds)
+  max_depth: 3
+
+  # Maximum URLs to queue
+  max_urls: 1000
+
+  # Number of parallel browser instances
+  concurrent_browsers: 3
+
+  # Delay between requests in milliseconds
+  request_delay_ms: 500
+
+  # Page load timeout in milliseconds
+  page_timeout_ms: 60000
+
+  # Browser options
+  headless: true
+  ignore_https_errors: true
+
+# ===========================================
+# Proxy Configuration (mitmproxy)
+# ===========================================
+proxy:
+  host: "127.0.0.1"
+  port: 8085
+
+# ===========================================
+# Scope Configuration
+# ===========================================
+scope:
+  # Allowed domains (supports wildcards)
+  # Example: ["example.com", "*.example.com"]
+  allowed_domains: []
+
+  # Paths to exclude from crawling
+  excluded_paths:
+    - "/static/*"
+    - "/assets/*"
+    - "/dist/*"
+    - "/build/*"
+    - "/node_modules/*"
+    - "/vendor/*"
+
+  # File extensions to skip
+  excluded_extensions:
+    - ".css"
+    - ".js"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".gif"
+    - ".svg"
+    - ".ico"
+    - ".woff"
+    - ".woff2"
+    - ".ttf"
+    - ".eot"
+    - ".pdf"
+    - ".zip"
+
+# ===========================================
+# Link Prioritization (Hybrid 3-Tier)
+# ===========================================
+prioritization:
+  # Tier weights (must sum to 1.0)
+  tier1_weight: 0.2  # Rule-based
+  tier2_weight: 0.3  # TF-IDF
+  tier3_weight: 0.5  # Q-Learning
+
+  # Rule-based (Tier 1) keywords
+  critical_keywords:
+    - "admin"
+    - "api"
+    - "auth"
+    - "config"
+    - "debug"
+    - "console"
+    - "dashboard"
+    - "internal"
+    - "manage"
+    - "system"
+    - "control"
+    - "backend"
+
+  high_keywords:
+    - "login"
+    - "signin"
+    - "signup"
+    - "register"
+    - "account"
+    - "payment"
+    - "billing"
+    - "user"
+    - "profile"
+    - "password"
+    - "token"
+    - "session"
+    - "oauth"
+    - "checkout"
+
+  medium_keywords:
+    - "products"
+    - "users"
+    - "search"
+    - "catalog"
+    - "items"
+    - "categories"
+    - "data"
+    - "export"
+    - "import"
+
+  low_keywords:
+    - "about"
+    - "contact"
+    - "help"
+    - "faq"
+    - "terms"
+    - "privacy"
+    - "legal"
+    - "support"
+
+# ===========================================
+# Q-Learning Configuration
+# ===========================================
+q_learning:
+  # Learning rate (alpha)
+  learning_rate: 0.1
+
+  # Discount factor (gamma)
+  discount_factor: 0.9
+
+  # Exploration rate (epsilon)
+  exploration_rate: 0.2
+
+  # Model persistence
+  model_path: "./models/q_model.pkl"
+  save_on_exit: true
+
+  # Reward configuration
+  rewards:
+    has_form: 0.3
+    has_authentication: 0.5
+    has_api_endpoint: 0.4
+    has_admin_indicator: 0.6
+    discovered_links_bonus: 0.1
+    static_content_penalty: -0.3
+    duplicate_penalty: -0.5
+    vulnerability_bonus: 1.0
+    error_4xx_penalty: -0.2
+    error_5xx_penalty: -0.3
+
+# ===========================================
+# Business Flow Detection
+# ===========================================
+business_flows:
+  # Enable automatic detection
+  auto_detect: true
+
+  # Enable automatic security testing (CAUTION!)
+  auto_test: false
+
+  # Flows to detect
+  enabled_flows:
+    - authentication
+    - registration
+    - password_reset
+    - e_commerce
+    - payment
+    - user_management
+    - admin_panel
+    - api_endpoint
+    - file_upload
+    - search
+    - data_export
+
+  # Minimum confidence threshold
+  min_confidence: 0.5
+
+# ===========================================
+# Security Testing
+# ===========================================
+security_testing:
+  # Enable security tests (CAUTION - may be destructive!)
+  enabled: false
+
+  # Require confirmation before each test
+  require_confirmation: true
+
+  # Test categories to run
+  enabled_categories:
+    - injection
+    - auth_bypass
+    - information_disclosure
+    # - brute_force  # Disabled by default
+    # - dos          # Disabled by default
+
+  # Rate limiting for tests
+  test_delay_ms: 1000
+  max_test_attempts: 3
+
+# ===========================================
+# Output Configuration
+# ===========================================
+output:
+  # Save screenshots during crawl
+  save_screenshots: false
+  screenshot_dir: "./screenshots"
+
+  # Save Q-learning model
+  save_model: true
+  model_dir: "./models"
+
+  # Export crawl results
+  export_results: true
+  export_format: "json"  # json, csv, html
+  export_dir: "./results"
+
+# ===========================================
+# Logging
+# ===========================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "./logs/crawl.log"
+  max_size_mb: 10
+  backup_count: 5
+
+# ===========================================
+# Database Connection
+# ===========================================
+database:
+  host: "localhost"
+  port: 5432
+  name: "cheatme"
+  user: "cheatme"
+  password: "cheatme"
