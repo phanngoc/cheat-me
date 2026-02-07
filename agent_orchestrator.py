@@ -94,6 +94,12 @@ class AgentOrchestrator:
                         is_suspicious = True
                         rules_matched.append(rule_id)
                 
+                elif det_type == 'url_regex':
+                    patterns = detection.get('patterns', [])
+                    if any(re.search(pattern, url) for pattern in patterns):
+                        is_suspicious = True
+                        rules_matched.append(rule_id)
+                
                 elif det_type == 'http_method':
                     patterns = detection.get('patterns', [])
                     if method in patterns:

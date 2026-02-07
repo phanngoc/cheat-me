@@ -419,6 +419,46 @@ rules:
     remediation: "Add SameSite=Strict or SameSite=Lax to cookies"
 
   # ====================================================================
+  # API LOGIC & AUTHORIZATION RULES (AL-XXX) - Analysis Phase
+  # ====================================================================
+
+  AL-001:
+    name: "Potential BOLA/IDOR - Guessable IDs in API"
+    enabled: true
+    phase: analysis
+    category: "Broken Object Level Authorization"
+    severity: MEDIUM
+    owasp: "A01:2025"
+    description: "Detects API endpoints using numeric or guessable identifiers in URLs"
+    detection:
+      type: url_regex
+      patterns:
+        - "/api/users/[0-9]+"
+        - "/api/accounts/[0-9]+"
+        - "/api/profile/[0-9]+"
+    message: "Potential BOLA/IDOR vulnerability: endpoint uses numeric identifier"
+
+  AL-002:
+    name: "Mass Assignment Candidate - POST with many fields"
+    enabled: true
+    phase: analysis
+    category: "Mass Assignment"
+    severity: WARNING
+    owasp: "A08:2025"
+    description: "Identifies POST/PUT requests to profile/settings with multiple parameters"
+    detection:
+      type: request_body
+      contains:
+        - role
+        - admin
+        - is_admin
+        - permissions
+        - priviliges
+        - balance
+        - points
+    message: "Potential Mass Assignment: sensitive field detected in request body"
+
+  # ====================================================================
   # INFORMATION DISCLOSURE RULES (ID-XXX) - Analysis Phase
   # ====================================================================
   
